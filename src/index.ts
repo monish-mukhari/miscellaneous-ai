@@ -24,7 +24,7 @@ async function createTodo(title: string, description: string) {
 }
 
 async function searchTodo(search: string) {
-    const todos = await db.select().from(todosTable).where(ilike(todosTable.title, search));
+    const todos = await db.select().from(todosTable).where(ilike(todosTable.title, `%${search}%`));
     return todos;
 }
 
