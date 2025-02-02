@@ -5,7 +5,10 @@
   "scripts": {
     "generate": "npx drizzle-kit generate",
     "migrate": "npx drizzle-kit migrate",
-    "studio": "npx drizzle-kit studio"
+    "studio": "npx drizzle-kit studio",
+    "build": "tsc -b",
+    "start": "node dist/src/index.js",
+    "dev": "npm run build && npm run start"
   },
   "keywords": [],
   "author": "",
@@ -22,6 +25,7 @@
     "@types/readline-sync": "^1.4.8",
     "dotenv": "^16.4.7",
     "drizzle-orm": "^0.38.4",
+    "openai": "^4.82.0",
     "pg": "^8.13.1",
     "readline-sync": "^1.4.10"
   }

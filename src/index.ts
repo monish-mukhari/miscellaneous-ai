@@ -2,10 +2,13 @@ import { db } from "./db/index.js";
 import { todosTable } from "./db/schema";
 import { ilike, eq } from "drizzle-orm";
 import readlineSync from "readline-sync";
-import { GoogleGenerativeAI } from "@google/generative-ai";
+import OpenAI from "openai";
+import { ChatCompletionMessageParam } from "openai/resources/index.js";
 
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
-const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+const client = new OpenAI({
+  baseURL: "https://openrouter.ai/api/v1",
+  apiKey: process.env.OPENAI_API_KEY
+});
 
 async function getAllTodos() {
     const todos = await db.select().from(todosTable);
@@ -76,42 +79,56 @@ const SYSTEM_PROMPT = `
 
 `;
 
-const messages = [ { role: 'system', content: SYSTEM_PROMPT } ];
+const messages: Array<ChatCompletionMessageParam> = [ { role: 'system', content: SYSTEM_PROMPT } ];
 
-
-while(true) {
-    const query = readlineSync.question(">> ");
+async function main() {
+  while(true) {
+    const query = readlineSync.question('>> ');
     const userMessage = {
-        type: "user",
-        user: query
+      type: 'user',
+      user: query
     };
-
-    messages.push({ role: "user", content: JSON.stringify(userMessage) });
-
-    // autoprompting
-
+  
+    messages.push({ role: 'user', content: JSON.stringify(userMessage) });
+  
+    // ### autoprompting
+  
     while(true) {
-        const chat = await model.generateContent(messages.toString())
-        const result = chat.response.text();
+      const chat = await client.chat.completions.create({
+        model: "openai/gpt-3.5-turbo",
+        messages: messages,
+        response_format: { type: 'json_object' },
+      });
+  
+      const result = chat.choices[0].message.content;
+      messages.push({ role: 'assistant', content: result });
 
-        messages.push({ role: 'assistant', content: result });
-        const action = JSON.parse(result);
+      console.log(`\n\n---------------- START AI ------------------`);
+      console.log(result);
+      console.log(`--------------------- END AI -------------------`);
 
-        if(action.type === 'output') {
-            console.log(`🤖: ${action.output}`);
-            break;
-        } else if(action.type === 'action') {
-            // @ts-ignore
-            const fn = tools[action.function];
-            if(!fn) throw new Error('Invalid Tool call');
-            const observation = await fn(action.input);
-            const observationMessage = {
-                type: "observation",
-                observation: observation
-            }
+      const action = JSON.parse(result!);
 
-            messages.push({ role: 'developer', content: JSON.stringify(observationMessage) });
-        } 
-        
+      if(action.type === "output") {
+        console.log(`🤖: ${action.output}`);
+        break;
+      } else if(action.type === "action") {
+        //@ts-ignore
+        const fn = tools[action.function];
+        if(!fn) {
+          throw new Error("Invalid Tool Call");
+        }
+        const observation = await fn(action.input);
+        const observationMessage = {
+          type: "observation",
+          observation: observation
+        }
+
+        messages.push({ role: "developer", content: JSON.stringify(observationMessage) });
+
+      }
     }
+  }
 }
+
+main();
